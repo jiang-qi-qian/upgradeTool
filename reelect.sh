@@ -1,5 +1,5 @@
 #!/bin/bash
-sdb 'db=new Sdb("localhost",11810,"","")'
+sdb 'db=new Sdb("localhost",11810,"sdbadmin","sdbadmin")'
 
 sdb 'db.getCataRG().reelect( {Hostname: "u16-jqq"} )'
 sdb 'db.getRG("group1").reelect({HostName:"u16-jqq"})'

@@ -263,6 +263,35 @@ function checkLSN() {
 }
 
 /* *****************************************************************************
+@discription: 检查存在事务列表 SDB_LIST_TRANSACTIONS，要求为空
+@author: Qiqian Jiang
+@return: true/false
+***************************************************************************** */
+function checkTransactions() {
+    var db;
+    try {
+        db = new Sdb(COORDADDR, COORDSVC, SDBUSER, SDBPASSWD);
+    } catch (error) {
+        println("Failed to connect sdb, error info: " + error + "(" + getLastErrMsg() + ")");
+        return false;
+    }
+
+    try {
+        var size = db.list(SDB_LIST_TRANSACTIONS).size();
+        if (size != 0) {
+            println("There are still exist TRANSACTIONS in the current cluster, please confirm with \"db.list(SDB_LIST_TRANSACTIONS)\"");
+            return false;
+        }
+    } catch (error) {
+        println("Failed to get \"db.list(SDB_LIST_TRANSACTIONS)\", error info: " + error + "(" + getLastErrMsg() + ")");
+        return false;
+    } finally {
+        db.close();
+    }
+    return true;
+}
+
+/* *****************************************************************************
 @discription: 检查，并收集集群升级前信息（文件名）
 @author: Qiqian Jiang
 @return: true/false
@@ -291,6 +320,13 @@ function collectInfo_old() {
         return false;
     }
 
+    println("Begin to check SDB_LIST_TRANSACTIONS");
+    if (checkTransactions()) {
+        println("Done");
+    } else {
+        return false;
+    }
+
     println("Begin to save $SNAPSHOT_CL info");
     if (saveSNAPSHOTCLInfo(SNAPSHOTCLFILE)) {
         println("Done");
@@ -298,14 +334,14 @@ function collectInfo_old() {
         return false;
     }
 
-    println("Begin to save domain info");
+    println("Begin to save Domain info");
     if (saveDomainInfo(DOMAINFILE)) {
         println("Done");
     } else {
         return false;
     }
 
-    println("Begin to save HASQL");
+    println("Begin to save HASQL info");
     if (saveHASQL(HASQLFILE)) {
         println("Done");
     } else {
