@@ -17,6 +17,9 @@ fi
 if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb' ]]; then
     test -f /etc/default/sequoiasql-mysql && . /etc/default/sequoiasql-mysql || . /etc/default/sequoiasql-mariadb
     SQL_INSTALL_DIR="${INSTALL_DIR}"
+    OLDSQLRUNPACKAGE=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"OLDSQLRUNPACKAGE\";var DATESTR = \"${DATESTR}\"" -f cluster_opr.js)
+    test $? -ne 0 && echo "[ERROR] Failed to get OLDSQLRUNPACKAGE from config.js" && exit 1
+    test ! -f "${OLDSQLRUNPACKAGE}" && echo "[ERROR] Failed to get OLDSQLRUNPACKAGE from config.js" && exit 1
 else
     echo "[WARN] SequoiaSQL is not installed on this machine"
     SQL_INSTALL_DIR=""
@@ -26,10 +29,6 @@ OLDSDBRUNPACKAGE=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var AR
 test $? -ne 0 && echo "[ERROR] Failed to get OLDSDBRUNPACKAGE from config.js" && exit 1
 test ! -f "${OLDSDBRUNPACKAGE}" && echo "[ERROR] Failed to get OLDSDBRUNPACKAGE from config.js" && exit 1
 
-OLDSQLRUNPACKAGE=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"OLDSQLRUNPACKAGE\";var DATESTR = \"${DATESTR}\"" -f cluster_opr.js)
-test $? -ne 0 && echo "[ERROR] Failed to get OLDSQLRUNPACKAGE from config.js" && exit 1
-test ! -f "${OLDSQLRUNPACKAGE}" && echo "[ERROR] Failed to get OLDSQLRUNPACKAGE from config.js" && exit 1
-
 echo "Begin to rollback SequoiaDB"
 ${OLDSDBRUNPACKAGE} --mode unattended --prefix "${SDB_INSTALL_DIR}" --installmode cover
 rc=$?
@@ -37,7 +36,7 @@ test $rc -ne 0 && echo "[ERROR] Failed to upgrade sdb, error code: $rc" && exit 
 echo "Done"
 
 if [ "${SQL_INSTALL_DIR}" != "" ]; then
-echo "Begin to rollback SequoiaSQL"
+    echo "Begin to rollback SequoiaSQL"
     ${OLDSQLRUNPACKAGE} --mode unattended --prefix "${SQL_INSTALL_DIR}" --installmode cover
     rc=$?
     test $rc -ne 0 && echo "[ERROR] Failed to upgrade sql, error code: $rc" && exit 1

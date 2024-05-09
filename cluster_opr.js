@@ -12,8 +12,6 @@ if ( typeof(COORDADDR) == "undefined" ) { COORDADDR = "localhost"; }
 if ( typeof(COORDSVC) == "undefined" ) { COORDSVC = 11810; }
 /* 所有机器都可用的备份目录 */
 if ( typeof(UPGRADEBACKUPPATH) == "undefined" ) { UPGRADEBACKUPPATH = "/sdbdata/data01/upgradebackup"; }
-/* HASQL 实例组 */
-if ( typeof(INSTGROUPNAME) != "array" ) { INSTGROUPNAME = []; }
 /* 操作时间 */
 if ( typeof(DATESTR) == "undefined" ) { var a = new Date(); DATESTR = a.getFullYear() + "_" + (a.getMonth() + 1) + "_" + a.getDate(); }
 
@@ -82,7 +80,7 @@ function saveSNAPSHOTCLInfo(filename) {
     }
 
     try {
-        var cursor = db.exec('select t2.Name,t2.TotalRecords,t2.TotalLobs from (select t.Name,t.Details.TotalRecords as TotalRecords,t.Details.TotalLobs as TotalLobs from (select Name,Details from $SNAPSHOT_CL split by Details) as t ) as t2 order by t2.Name');
+        var cursor = db.exec('select t2.Name,t2.TotalRecords,t2.TotalLobs from (select t.Name,t.Details.TotalRecords as TotalRecords,t.Details.TotalLobs as TotalLobs from (select Name,Details from $SNAPSHOT_CL split by Details) as t ) as t2 order by t2.Name,t2.TotalRecords,t2.TotalLobs');
         while(cursor.next()) {
             let current = cursor.current().toObj();
             // 拼成一行写入， diff 可用看到哪些表不对
@@ -158,6 +156,11 @@ function saveDomainInfo(filename) {
 @return: true/false
 ***************************************************************************** */
 function saveHASQL(filename) {
+    if (INSTANCEGROUP == "") {
+        println("There is no need to collect HASQL information, because SequoiaSQL is not installed");
+        return true;
+    }
+
     var db;
     var file;
     try {
@@ -428,31 +431,33 @@ function checkCluster() {
         return false;
     }
     println("Done");
-    println("Begin to check HASQL");
-    try {
-        var cmd = "db.HAInstanceGroup_" + INSTANCEGROUP + ".HAInstanceState.find()";
-        var cursor = eval(cmd);
-        var id = -1;
-        while(cursor.next()) {
-            if (-1 == id) {
-                id = cursor.current().toObj().SQLID;
-            } else if (id != cursor.current().toObj().SQLID) {
-                println("There are different SQLID in the HAInstanceGroup_" + INSTANCEGROUP + ".HAInstanceState");
-                cursor.close();
-                db.close();
-                return false;
+    if (INSTANCEGROUP != "") {
+        println("Begin to check HASQL");
+        try {
+            var cmd = "db.HAInstanceGroup_" + INSTANCEGROUP + ".HAInstanceState.find()";
+            var cursor = eval(cmd);
+            var id = -1;
+            while(cursor.next()) {
+                if (-1 == id) {
+                    id = cursor.current().toObj().SQLID;
+                } else if (id != cursor.current().toObj().SQLID) {
+                    println("There are different SQLID in the HAInstanceGroup_" + INSTANCEGROUP + ".HAInstanceState");
+                    cursor.close();
+                    db.close();
+                    return false;
+                }
             }
+        } catch (error) {
+            println("Failed to check SQLID in the HAInstanceGroup");
+            if (null != cursor) {
+                cursor.close();
+            }
+            return false;
+        } finally {
+            db.close();
         }
-    } catch (error) {
-        println("Failed to check SQLID in the HAInstanceGroup");
-        if (null != cursor) {
-            cursor.close();
-        }
-        return false;
-    } finally {
-        db.close();
+        println("Done");
     }
-    println("Done");
     return true;
 }
 
