@@ -156,7 +156,7 @@ function saveDomainInfo(filename) {
 @return: true/false
 ***************************************************************************** */
 function saveHASQL(filename) {
-    if (INSTANCEGROUP == "") {
+    if (INSTANCEGROUPARRAY.length == 0) {
         println("There is no need to collect HASQL information, because SequoiaSQL is not installed");
         return true;
     }
@@ -189,10 +189,14 @@ function saveHASQL(filename) {
     }
 
     try {
-        var cmd = "db.HAInstanceGroup_" + INSTANCEGROUP + ".HASQLLog.find()";
-        var cursor = eval(cmd);
-        while(cursor.next()) {
-            file.write(cursor.current().toString() + "\n");
+        var cursor;
+        for (let i = 0; i < INSTANCEGROUPARRAY.length; i++) {
+            var cmd = "db.HAInstanceGroup_" + INSTANCEGROUPARRAY[i] + ".HASQLLog.find()";
+            cursor = eval(cmd);
+            while(cursor.next()) {
+                file.write(cursor.current().toString() + "\n");
+            }
+            cursor.close();
         }
     } catch (error) {
         println("Write HASQL info to file[" + filename + "] failed, error info: " + error + "(" + getLastErrMsg() + ")");
@@ -431,21 +435,25 @@ function checkCluster() {
         return false;
     }
     println("Done");
-    if (INSTANCEGROUP != "") {
+    if (INSTANCEGROUPARRAY.length != 0) {
         println("Begin to check HASQL");
         try {
-            var cmd = "db.HAInstanceGroup_" + INSTANCEGROUP + ".HAInstanceState.find()";
-            var cursor = eval(cmd);
-            var id = -1;
-            while(cursor.next()) {
-                if (-1 == id) {
-                    id = cursor.current().toObj().SQLID;
-                } else if (id != cursor.current().toObj().SQLID) {
-                    println("There are different SQLID in the HAInstanceGroup_" + INSTANCEGROUP + ".HAInstanceState");
-                    cursor.close();
-                    db.close();
-                    return false;
+            var cursor;
+            for (let i = 0; i < INSTANCEGROUPARRAY.length; i++) {
+                var cmd = "db.HAInstanceGroup_" + INSTANCEGROUPARRAY[i] + ".HAInstanceState.find()";
+                cursor = eval(cmd);
+                var id = -1;
+                while(cursor.next()) {
+                    if (-1 == id) {
+                        id = cursor.current().toObj().SQLID;
+                    } else if (id != cursor.current().toObj().SQLID) {
+                        println("There are different SQLID in the HAInstanceGroup_" + INSTANCEGROUPARRAY[i] + ".HAInstanceState");
+                        cursor.close();
+                        db.close();
+                        return false;
+                    }
                 }
+                cursor.close();
             }
         } catch (error) {
             println("Failed to check SQLID in the HAInstanceGroup");
@@ -620,7 +628,12 @@ function checkBasic() {
     println("Done");
     println("Begin to remove cs [" + TESTCS + "]");
     try {
-        db.dropCS(TESTCS);
+        var VERSIONARRAY = SDBVERSION.split('.');
+        if (VERSIONARRAY[0] >= 5 && VERSIONARRAY[1] >= 8 && VERSIONARRAY[2] >= 2) {
+            db.dropCS(TESTCS,{"SkipRecycleBin":true});
+        } else {
+            db.dropCS(TESTCS);
+        }
     } catch (error) {
         println("Failed to remove cs [" + TESTCS + "], error info: " + error + "(" + getLastErrMsg() + ")");
         db.close();
@@ -705,8 +718,8 @@ function main() {
 
     /* Doing */
     if ("collect_old" == CUROPR) {
-        if (typeof(INSTANCEGROUP) == "undefined") {
-            println("[ERROR] INSTANCEGROUP is undefined");
+        if (typeof(INSTANCEGROUPARRAY) == "undefined") {
+            println("[ERROR] INSTANCEGROUPARRAY is undefined");
             return 1;
         }
         println("Begin to collect cluster information before upgrade...");
@@ -717,8 +730,8 @@ function main() {
             return 1;
         }
     } else if ("collect_new" == CUROPR) {
-        if (typeof(INSTANCEGROUP) == "undefined") {
-            println("[ERROR] INSTANCEGROUP is undefined");
+        if (typeof(INSTANCEGROUPARRAY) == "undefined") {
+            println("[ERROR] INSTANCEGROUPARRAY is undefined");
             return 1;
         }
         println("Begin to collect cluster information...");
@@ -729,8 +742,8 @@ function main() {
             return 1;
         }
     } else if ("checkCluster" == CUROPR) {
-        if (typeof(INSTANCEGROUP) == "undefined") {
-            println("[ERROR] INSTANCEGROUP is undefined");
+        if (typeof(INSTANCEGROUPARRAY) == "undefined") {
+            println("[ERROR] INSTANCEGROUPARRAY is undefined");
             return 1;
         }
         println("Begin to check cluster...");
@@ -742,6 +755,10 @@ function main() {
         }
     } else if ("checkBasic" == CUROPR) {
         println("Begin to check basic ability");
+        if (typeof(SDBVERSION) == "undefined") {
+            println("[ERROR] SDBVERSION is undefined");
+            return 1;
+        }
         if (checkBasic()) {
             println("Done");
         } else {

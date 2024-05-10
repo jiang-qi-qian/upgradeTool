@@ -12,8 +12,6 @@ var UPGRADEBACKUPPATH = "/sdbdata/data01/upgradebackup";
 var SQLUSER = "sdbadmin";
 // SequoiaSQL 用户密码
 var SQLPASSWD = "sdbadmin";
-// SequoiaSQL 端口号
-var SQLPORT = "3306";
 // 升级包
 var NEWSDBRUNPACKAGE = "/opt/test/sequoiadb-5.8.2-linux_x86_64-enterprise-installer.run";
 var NEWSQLRUNPACKAGE = "/opt/test/sequoiasql-mysql-5.8.2-linux_x86_64-enterprise-installer.run";
