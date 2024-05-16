@@ -29,8 +29,11 @@ OLDSDBRUNPACKAGE=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var AR
 test $? -ne 0 && echo "[ERROR] Failed to get OLDSDBRUNPACKAGE from config.js" && exit 1
 test ! -f "${OLDSDBRUNPACKAGE}" && echo "[ERROR] Failed to get OLDSDBRUNPACKAGE from config.js" && exit 1
 
+ROLLBACKOM=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"ROLLBACKOM\";var DATESTR = \"${DATESTR}\"" -f cluster_opr.js)
+test $? -ne 0 && echo "[ERROR] Failed to get ROLLBACKOM from config.js" && exit 1
+
 echo "Begin to rollback SequoiaDB"
-${OLDSDBRUNPACKAGE} --mode unattended --prefix "${SDB_INSTALL_DIR}" --installmode cover
+${OLDSDBRUNPACKAGE} --mode unattended --prefix "${SDB_INSTALL_DIR}" --installmode cover --SMS "${ROLLBACKOM}"
 rc=$?
 test $rc -ne 0 && echo "[ERROR] Failed to upgrade sdb, error code: $rc" && exit 1
 echo "Done"

@@ -24,3 +24,5 @@ var TESTDOMAIN = "testDomain";
 var TESTCS = "testCS";
 // 创建的测试 CL 名，对应 SQL 的表
 var TESTCL = "testCL"
+// 回滚时是否需要安装 OM
+var ROLLBACKOM = false;
