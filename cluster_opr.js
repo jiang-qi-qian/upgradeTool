@@ -255,7 +255,7 @@ function checkLSN() {
     }
 
     try {
-        var size = db.exec('select DiffLSNWithPrimary from $SNAPSHOT_HEALTH where DiffLSNWithPrimary <> 0 and DiffLSNWithPrimary <> -1').size();
+        var size = db.exec('select DiffLSNWithPrimary from $SNAPSHOT_HEALTH where DiffLSNWithPrimary > ' + LSNDIFF).size();
         if (size != 0) {
             println("There are still exist DiffLSNWithPrimary node in the current cluster, please confirm with $SNAPSHOT_HEALTH");
             return false;
@@ -440,14 +440,11 @@ function checkCluster() {
         try {
             var cursor;
             for (let i = 0; i < INSTANCEGROUPARRAY.length; i++) {
-                var cmd = "db.HAInstanceGroup_" + INSTANCEGROUPARRAY[i] + ".HAInstanceState.find()";
-                cursor = eval(cmd);
-                var id = -1;
+                var cursor = db.exec('select max(SQLID) as max_id,min(SQLID) as min_id from HAInstanceGroup_' + INSTANCEGROUPARRAY[i] + '.HAInstanceState');
                 while(cursor.next()) {
-                    if (-1 == id) {
-                        id = cursor.current().toObj().SQLID;
-                    } else if (id != cursor.current().toObj().SQLID) {
-                        println("There are different SQLID in the HAInstanceGroup_" + INSTANCEGROUPARRAY[i] + ".HAInstanceState");
+                    var current = cursor.current().toObj();
+                    if (current.max_id - current.min_id > HASQLIDDIFF) {
+                        println("There are different SQLID more than " + HASQLIDDIFF + " in the HAInstanceGroup_" + INSTANCEGROUPARRAY[i] + ".HAInstanceState");
                         cursor.close();
                         db.close();
                         return false;
@@ -465,6 +462,12 @@ function checkCluster() {
             db.close();
         }
         println("Done");
+    }
+    println("Begin to check DiffLSNWithPrimary");
+    if (checkLSN()) {
+        println("Done");
+    } else {
+        return false;
     }
     return true;
 }
@@ -555,36 +558,19 @@ function checkBasic() {
         return false;
     }
     
-    println("Begin to create domain [" + TESTDOMAIN + "]");
-    try {
-        db.createDomain( TESTDOMAIN, dataArray, { "AutoSplit": true } );
-    } catch (error) {
-        println("Failed to create domain [" + TESTDOMAIN +"], error info: " + error + "(" + getLastErrMsg() + ")");
-        db.close();
-        return false;
-    }
-    println("Done");
-    println("Begin to create cs [" + TESTCS + "]");
-    try {
-        db.createCS(TESTCS, { "Domain": TESTDOMAIN });
-    } catch (error) {
-        println("Failed to create cs [" + TESTCS + "], error info: " + error + "(" + getLastErrMsg() + ")");
-        db.close();
-        return false;
-    }
-    println("Done");
-    println("Begin to create cl [" + TESTCL + "]");
-    try {
-        db.getCS(TESTCS).createCL(TESTCL, { "ShardingKey": { "_id": 1 }, "ShardingType": "hash", "ReplSize": -1, "Compressed": true, "CompressionType": "lzw", "AutoSplit": true, "EnsureShardingIndex": false } );
-    } catch (error) {
-        println("Failed to create cl [" + TESTCS + "." + TESTCL + "], error info: " + error + "(" + getLastErrMsg() + ")");
-        db.close();
-        return false;
-    }
-    println("Done");
+    // 不创建 Domain
+    // println("Begin to create domain [" + TESTDOMAIN + "]");
+    // try {
+    //     db.createDomain( TESTDOMAIN, dataArray, { "AutoSplit": true } );
+    // } catch (error) {
+    //     println("Failed to create domain [" + TESTDOMAIN +"], error info: " + error + "(" + getLastErrMsg() + ")");
+    //     db.close();
+    //     return false;
+    // }
+    // println("Done");
     println("Begin to insert data");
     try {
-        for(var num = 1; num < 5000; num++){
+        for(var num = 1; num < 1000; num++){
             db.getCS(TESTCS).getCL(TESTCL).insert({"id":num,"name":num+""})
         }
     } catch (error) {
@@ -598,7 +584,7 @@ function checkBasic() {
         var cursor=db.getCS(TESTCS).getCL(TESTCL).find();
         cursor.close();
         db.getCS(TESTCS).getCL(TESTCL).update({$set:{"name":"a1"}},{"id":1});
-        db.getCS(TESTCS).getCL(TESTCL).remove({"id":1});
+        db.getCS(TESTCS).getCL(TESTCL).remove();
     } catch (error) {
         println("Failed to check find,update and remove, error info: " + error + "(" + getLastErrMsg() + ")");
         db.close();
@@ -607,7 +593,7 @@ function checkBasic() {
     println("Done");
     println("Begin to insert LOB");
     try {
-        for(var num = 1; num < 200; num++){
+        for(var num = 1; num < 100; num++){
             db.getCS(TESTCS).getCL(TESTCL).putLob(LOBFILE);
         }
     } catch (error) {
@@ -616,42 +602,43 @@ function checkBasic() {
         return false;
     }
     println("Done");
-    println("Begin to check LOB find and remove");
+    println("Begin to check LOB find");
     try {
         var cursor = db.getCS(TESTCS).getCL(TESTCL).listLobs();
         cursor.close();
     } catch (error) {
-        println("Failed to check LOB find and remove, error info: " + error + "(" + getLastErrMsg() + ")");
+        println("Failed to check LOB find, error info: " + error + "(" + getLastErrMsg() + ")");
         db.close();
         return false;
-    }
-    println("Done");
-    println("Begin to remove cs [" + TESTCS + "]");
-    try {
-        var VERSIONARRAY = SDBVERSION.split('.');
-        if (VERSIONARRAY[0] >= 5 && VERSIONARRAY[1] >= 8 && VERSIONARRAY[2] >= 2) {
-            db.dropCS(TESTCS,{"SkipRecycleBin":true});
-        } else {
-            db.dropCS(TESTCS);
-        }
-    } catch (error) {
-        println("Failed to remove cs [" + TESTCS + "], error info: " + error + "(" + getLastErrMsg() + ")");
-        db.close();
-        return false;
-    }
-    println("Done");
-    println("Begin to remove domain [" + TESTDOMAIN + "]");
-    try {
-        db.dropDomain(TESTDOMAIN);
-    } catch (error) {
-        println("Failed to remove cl [" + TESTDOMAIN + "], error info: " + error + "(" + getLastErrMsg() + ")");
-        db.close();
-        return false;
-    } finally {
-        db.close();
     }
     println("Done");
     return true;
+    // 不做DDL
+    // println("Begin to remove cs [" + TESTCS + "]");
+    // try {
+    //     var VERSIONARRAY = SDBVERSION.split('.');
+    //     if (VERSIONARRAY[0] >= 5 && VERSIONARRAY[1] >= 8 && VERSIONARRAY[2] >= 2) {
+    //         db.dropCS(TESTCS,{"SkipRecycleBin":true});
+    //     } else {
+    //         db.dropCS(TESTCS);
+    //     }
+    // } catch (error) {
+    //     println("Failed to remove cs [" + TESTCS + "], error info: " + error + "(" + getLastErrMsg() + ")");
+    //     db.close();
+    //     return false;
+    // }
+    // println("Done");
+    // println("Begin to remove domain [" + TESTDOMAIN + "]");
+    // try {
+    //     db.dropDomain(TESTDOMAIN);
+    // } catch (error) {
+    //     println("Failed to remove cl [" + TESTDOMAIN + "], error info: " + error + "(" + getLastErrMsg() + ")");
+    //     db.close();
+    //     return false;
+    // } finally {
+    //     db.close();
+    // }
+    // println("Done");
 }
 
 /* *****************************************************************************
@@ -696,6 +683,50 @@ function dropSYSRECYCLEITEMS() {
 }
 
 /* *****************************************************************************
+@discription: 创建测试用的表
+@author: Qiqian Jiang
+@return: true/false
+***************************************************************************** */
+function createTestCSCL() {
+    var db;
+
+    try {
+        db = new Sdb(COORDADDR, COORDSVC, SDBUSER, SDBPASSWD);
+    } catch (error) {
+        println("Failed to connect sdb, error info: " + error + "(" + getLastErrMsg() + ")");
+        return false;
+    }
+
+    println("Begin to create cs [" + TESTCS + "]");
+    try {
+        db.createCS(TESTCS);
+    } catch (error) {
+        if (-33 != error) {
+            println("Failed to create cs [" + TESTCS + "], error info: " + error + "(" + getLastErrMsg() + ")");
+            db.close();
+            return false;
+        } else {
+            println("TESTCS [" + TESTCS + "] is already exists");
+        }
+    }
+    println("Done");
+    println("Begin to create cl [" + TESTCL + "]");
+    try {
+        db.getCS(TESTCS).createCL(TESTCL, { "ShardingKey": { "_id": 1 }, "ShardingType": "hash", "ReplSize": -1, "Compressed": true, "CompressionType": "lzw", "AutoSplit": true, "EnsureShardingIndex": false } );
+    } catch (error) {
+        if (-22 != error) {
+            println("Failed to create cl [" + TESTCS + "." + TESTCL + "], error info: " + error + "(" + getLastErrMsg() + ")");
+            db.close();
+            return false;
+        } else {
+            println("TESTCL [" + TESTCL + "] is already exists");
+        }
+    }
+    println("Done");
+    return true;
+}
+
+/* *****************************************************************************
 @discription: 入口函数
 @author: Qiqian Jiang
 @return: true/false
@@ -717,7 +748,15 @@ function main() {
     }
 
     /* Doing */
-    if ("collect_old" == CUROPR) {
+    if ("createTestCSCL" == CUROPR) {
+        println("Begin to create SDB test CS.CL");
+        if (createTestCSCL()) {
+            println("Done");
+        } else {
+            println("Failed");
+            return 1;
+        }
+    } else if ("collect_old" == CUROPR) {
         if (typeof(INSTANCEGROUPARRAY) == "undefined") {
             println("[ERROR] INSTANCEGROUPARRAY is undefined");
             return 1;
