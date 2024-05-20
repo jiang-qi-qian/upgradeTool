@@ -15,7 +15,7 @@ else
     exit 1
 fi
 
-NEWSDBRUNPACKAGE=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"NEWSDBRUNPACKAGE\";var DATESTR = \"${DATESTR}\"" -f cluster_opr.js)
+NEWSDBRUNPACKAGE=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"NEWSDBRUNPACKAGE\"" -f cluster_opr.js)
 test $? -ne 0 && echo "[ERROR] Failed to get NEWSDBRUNPACKAGE from config.js" && exit 1
 test ! -f "${NEWSDBRUNPACKAGE}" && echo "[ERROR] Failed to get NEWSDBRUNPACKAGE from config.js" && exit 1
 
@@ -31,7 +31,7 @@ if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb'
         echo "[ERROR] There are sql nodes that have not stopped"
         exit 1
     fi
-    NEWSQLRUNPACKAGE=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"NEWSQLRUNPACKAGE\";var DATESTR = \"${DATESTR}\"" -f cluster_opr.js)
+    NEWSQLRUNPACKAGE=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"NEWSQLRUNPACKAGE\"" -f cluster_opr.js)
     test $? -ne 0 && echo "[ERROR] Failed to get NEWSQLRUNPACKAGE from config.js" && exit 1
     test ! -f "${NEWSQLRUNPACKAGE}" && echo "[ERROR] Failed to get NEWSQLRUNPACKAGE from config.js" && exit 1
 else
