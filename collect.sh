@@ -29,7 +29,6 @@ do
         fi
 done
 
-sdb -e "var CUROPR = \"collect_old\";var INSTANCEGROUPARRAY = [ ${GROUPSTR} ]" -f cluster_opr.js
 # 创建 SDB 的测试表
 sdb -e "var CUROPR = \"createTestCSCL\"" -f cluster_opr.js
 # 每个实例组创建 SQL 的测试表
@@ -68,3 +67,6 @@ if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb'
         echo "Create table ${TESTCS}.${TESTCL} in ${SQLHOSTARRAY[0]}:${SQLPORTARRAY[0]} SQL success"
     done
 fi
+
+#在创建测试表之后再收集信息
+sdb -e "var CUROPR = \"collect_old\";var INSTANCEGROUPARRAY = [ ${GROUPSTR} ]" -f cluster_opr.js
