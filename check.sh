@@ -22,7 +22,7 @@ if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb'
     echo "HASQL instance group: ${INSTANCEGROUPARRAY[@]}"
     echo "Done"
 else
-    echo "[WARN] SequoiaSQL is not installed on this machine"
+    echo "[WARNING] SequoiaSQL is not installed on this machine"
 fi
 
 GROUPSTR=""
@@ -40,6 +40,7 @@ sdb -e "var CUROPR = \"collect_new\";var INSTANCEGROUPARRAY = [ ${GROUPSTR} ]" -
 
 SKIPCHECK=$(sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"SKIPCHECK\"" -f cluster_opr.js)
 test $? -ne 0 && echo "[ERROR] Failed to get SKIPCHECK from config.js" && exit 1
+# 如果是滚动升级，根据 config.js 的参数跳过检查
 if [ "${SKIPCHECK}" == "true" ]; then
     echo "[WARNING] Skip checking dynamic information"
 elif [ "${SKIPCHECK}" == "false" ]; then
@@ -64,7 +65,7 @@ test $? -ne 0 && echo "[ERROR] Failed to get SequoiaDB version from sdb -v" && e
 sdb -e "var CUROPR = \"checkBasic\";var SDBVERSION = \"${SDBVERSION}\"" -f cluster_opr.js
 echo "Done"
 
-# 每个实例组都需要选两台机器测试同步
+# 实例组同步测试
 if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb' ]]; then
     echo "Begin to check local SQL"
 
@@ -82,13 +83,18 @@ if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb'
     for instgroup in "${INSTANCEGROUPARRAY[@]}"
     do
         # 找出同一实例组下的两个 SQL 实例，检查是否同步
+        # 如果只有一个实例组，则只做基本测试，不做同步检查
         echo "Begin to check instance group ${instgroup}"
         if [ "`ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" --name="${instgroup}"`" != "" ]; then
             # 发现 ha_inst_group_list 打印间隔有问题，如果某些内容过长会导致 awk $x 出错，暂时没办法搞
-            SQLHOSTARRAY=(`ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" --name="${instgroup}" | tail -n 2 | awk '{print $3}'`)
-            SQLPORTARRAY=(`ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" --name="${instgroup}" | tail -n 2 | awk '{print $4}'`)
-            test ${#SQLHOSTARRAY[*]} -ne 2 &&echo "[ERROR] Failed to get ${instgroup} HOST from ha_inst_group_list" && exit 1
-            test ${#SQLHOSTARRAY[*]} -ne 2 &&echo "[ERROR] Failed to get ${instgroup} PORT from ha_inst_group_list" && exit 1
+            SQLHOSTARRAY=(`ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" --name="${instgroup}" | sed -n '2,$p' | sort | tail -n 2 | awk '{print $3}'`)
+            SQLPORTARRAY=(`ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" --name="${instgroup}" | sed -n '2,$p' | sort | tail -n 2 | awk '{print $4}'`)
+            
+            test ${#SQLHOSTARRAY[*]} -ne ${#SQLPORTARRAY[*]} && echo "[ERROR] Failed to get ${instgroup} HOST from ha_inst_group_list" && exit 1
+            ONLY_ONE_INSTANCE="false"
+            if [ "${#SQLHOSTARRAY[*]}" != "2" ]; then
+                ONLY_ONE_INSTANCE="true"
+            fi
         else
             echo "[ERROR] Failed to find SQL HA group ${instgroup} in ha_inst_group_list"
             exit 1
@@ -117,18 +123,23 @@ if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb'
 
         sleep 2
 
-        # 实例2
-        mysql -h"${SQLHOSTARRAY[1]}" -P "${SQLPORTARRAY[1]}" -u "${SQLUSER}" -p"${SQLPASSWD}" -e "show create table ${TESTCS}.${TESTCL};"
-        test $? -ne 0 && echo "[ERROR] Show create table ${TESTCS}.${TESTCL} in ${SQLHOSTARRAY[1]}:${SQLPORTARRAY[1]} SQL failed" && exit 1
-        mysql -h"${SQLHOSTARRAY[1]}" -P "${SQLPORTARRAY[1]}" -u "${SQLUSER}" -p"${SQLPASSWD}" -e "select * from ${TESTCS}.${TESTCL};"
-        test $? -ne 0 && echo "[ERROR] Select ${TESTCS}.${TESTCL} in ${SQLHOSTARRAY[1]}:${SQLPORTARRAY[1]} SQL failed" && exit 1
-        # 不做 DDL
-        # mysql -h"${SQLHOSTARRAY[1]}" -P "${SQLPORTARRAY[1]}" -u "${SQLUSER}" -p"${SQLPASSWD}" -e "drop database ${TESTCS};"
-        # test $? -ne 0 && echo "[ERROR] Drop ${TESTCS} in ${SQLHOSTARRAY[1]}:${SQLPORTARRAY[1]} SQL failed" && exit 1
+        if [ "${ONLY_ONE_INSTANCE}" == "false" ]; then
+            # 实例2
+            echo "Begin to check another instance in the instance group ${instgroup}"
+            mysql -h"${SQLHOSTARRAY[1]}" -P "${SQLPORTARRAY[1]}" -u "${SQLUSER}" -p"${SQLPASSWD}" -e "show create table ${TESTCS}.${TESTCL};"
+            test $? -ne 0 && echo "[ERROR] Show create table ${TESTCS}.${TESTCL} in ${SQLHOSTARRAY[1]}:${SQLPORTARRAY[1]} SQL failed" && exit 1
+            mysql -h"${SQLHOSTARRAY[1]}" -P "${SQLPORTARRAY[1]}" -u "${SQLUSER}" -p"${SQLPASSWD}" -e "select * from ${TESTCS}.${TESTCL};"
+            test $? -ne 0 && echo "[ERROR] Select ${TESTCS}.${TESTCL} in ${SQLHOSTARRAY[1]}:${SQLPORTARRAY[1]} SQL failed" && exit 1
+            # 不做 DDL
+            # mysql -h"${SQLHOSTARRAY[1]}" -P "${SQLPORTARRAY[1]}" -u "${SQLUSER}" -p"${SQLPASSWD}" -e "drop database ${TESTCS};"
+            # test $? -ne 0 && echo "[ERROR] Drop ${TESTCS} in ${SQLHOSTARRAY[1]}:${SQLPORTARRAY[1]} SQL failed" && exit 1
+        else
+            echo "[INFO] There is only one instance in the instance group ${instgroup}"
+        fi
         echo "Done"
     done
 
-    # 等待一会再次检查实例组SQLID，避免前面的 DDL 未回放完成
+    # 等待一会再次检查实例组SQLID，避免前面的 DDL 未回放完成（前面DDL已注释，此处可不等待）
     echo "Begin to check SQLID again"
     sleep 3
     sdb -e "var CUROPR = \"checkCluster\";var INSTANCEGROUPARRAY = [ ${GROUPSTR} ]" -f cluster_opr.js

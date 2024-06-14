@@ -1,14 +1,20 @@
 - 配置在 config.js 文件中
 - 工具限制
-    - 自动获取每个SQL实例组下的两个实例做测试（实例组里必须有两个及以上的实例）
+    - 不支持同时安装 MySQL 和 MariaDB
+    - 所有 SQL 实例需要使用一个用户密码登录，且该用户需要拥有 CRUD 权限
+    - 不支持未使用实例组的 SQL 实例校验
+    - 自动获取每个实例组下的 SQL 实例做测试
+        如果实例组下只有一个实例，只做基本测试（CRUD）；如果有两个及以上实例，会随机挑选两个实例做同步测试
     - 如果使用了 SQL ，所有只使用一次的工具需要在有 SQL 和 SDB 的机器执行
-    - 使用了当天时间作为目录名，不建议跨天操作；如果需要跨天操作，需要修改备份目录名为当天日期
+    - SQL 和 SDB 需要用同一个操作系统用户权限如 sdbadmin
 
 - 升级前
                         刷盘，停止业务
     collect.sh          (sdbadmin)选择一台同时拥有 SDB 和 SQL 的机器 host1 执行，收集升级前集群信息
     stop.sh             (sdbadmin)所有机器执行，停止所有 SQL 实例，SDB 节点 和 sdbcm
-    upgrade_backup.sh   (sdbadmin)所有机器执行备份，可并发
+    upgrade_backup.sh   (sdbadmin/root)所有机器执行备份，可并发
+                            目前发现部分版本的SQL，如 3.4.8 存在 uninstall.dat 文件权限为 -rw------- root root，这种情况下 sdbadmin 用户无法备份
+                            使用前确认权限来决定用什么用户执行；如果 sdbadmin 用户执行失败后，切换为 root 用户再次执行，无影响
 
 - 升级              
     upgrade_install.sh  (root)所有机器执行升级，可并发
@@ -41,4 +47,4 @@
     - 检查方法:
         在使用工具前用 ha_inst_group_list 和 ha_inst_group_list --name=xxx 检查是否有上述情况
     - 后续解决方案:
-        修复 ha_inst_group_list 并打包到工具中，使用新版本的 ha_inst_group_list 工具
+        新版本已修复此问题，单独携带此 ha_inst_group_list 工具到客户环境使用

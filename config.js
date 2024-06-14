@@ -15,11 +15,11 @@ var SQLUSER = "sdbadmin";
 // SequoiaSQL 用户密码
 var SQLPASSWD = "sdbadmin";
 // 升级包
-var NEWSDBRUNPACKAGE = "/opt/test/sequoiadb-5.8.2-linux_x86_64-enterprise-installer.run";
-var NEWSQLRUNPACKAGE = "/opt/test/sequoiasql-mysql-5.8.2-linux_x86_64-enterprise-installer.run";
+var NEWSDBRUNPACKAGE = "";
+var NEWSQLRUNPACKAGE = "";
 // 回滚包
-var OLDSDBRUNPACKAGE = "/opt/test/sequoiadb-5.0.2-linux_x86_64-enterprise-installer.run";
-var OLDSQLRUNPACKAGE = "/opt/test/sequoiasql-mysql-5.0.2-linux_x86_64-enterprise-installer.run";
+var OLDSDBRUNPACKAGE = "";
+var OLDSQLRUNPACKAGE = "";
 // 创建的测试 SDB CS 名，SQL 的库会增加 _sql 后缀避免重复（升级前创建，避免升级过程中DDL）
 var TESTCS = "testCS";
 // 创建的测试 SDB CL 名，SQL 的表会增加 _sql 后缀避免重复（升级前创建，避免升级过程中DDL）
