@@ -25,7 +25,7 @@ var TESTCS = "testCS";
 // 创建的测试 SDB CL 名，SQL 的表会增加 _sql 后缀避免重复（升级前创建，避免升级过程中DDL）
 var TESTCL = "testCL"
 // 升级过程中是否跳过集群数据量检查，适用于滚动升级
-var SKIPCHECK = true;
+var SKIPCHECK = false;
 // 集群状态校验时 HASQL ID 允许的差异范围，单位为 SQL 条数，默认值 0，此范围内不报错，适用于滚动升级
 var HASQLIDDIFF = 0;
 // 集群状态校验时 LSN 允许的差异范围，单位为 Bytes，默认值 0，此范围内不报错，适用于滚动升级

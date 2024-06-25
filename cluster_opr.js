@@ -191,7 +191,7 @@ function saveHASQL(filename) {
     try {
         var cursor;
         for (let i = 0; i < INSTANCEGROUPARRAY.length; i++) {
-            var cmd = "db.HAInstanceGroup_" + INSTANCEGROUPARRAY[i] + ".HASQLLog.find()";
+            var cmd = "db.HAInstanceGroup_" + INSTANCEGROUPARRAY[i] + ".HASQLLog.find().sort({SQLID:1})";
             cursor = eval(cmd);
             while(cursor.next()) {
                 file.write(cursor.current().toString() + "\n");

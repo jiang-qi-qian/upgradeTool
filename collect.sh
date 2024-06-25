@@ -68,5 +68,6 @@ if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb'
     done
 fi
 
-#在创建测试表之后再收集信息
+#在创建测试表等待一会（回放）之后再收集信息
+sleep 5
 sdb -e "var CUROPR = \"collect_old\";var INSTANCEGROUPARRAY = [ ${GROUPSTR} ]" -f cluster_opr.js
