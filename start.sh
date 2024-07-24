@@ -23,8 +23,8 @@ echo "Done"
 echo "----------------------------------------------------------"
 
 
-# 循环看节点启动 1s ，循环 20s
-echo "Waiting 20s for nodes start"
+# 循环看节点启动 1s ，循环 60s
+echo "Waiting 60s for nodes start"
 loop_count=0
 while true
 do
@@ -33,7 +33,7 @@ do
     if [ "${run_count}" == "${all_count}" ]; then
         break;
     else
-        test $loop_count -eq 20 && echo "[ERROR] Waiting sdb nodes start timeout" && exit 1
+        test $loop_count -eq 60 && echo "[ERROR] Waiting sdb nodes start timeout" && exit 1
         sleep 1
         ((loop_count++))
     fi

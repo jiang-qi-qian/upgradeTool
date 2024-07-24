@@ -9,14 +9,24 @@ if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb'
         test $? -ne 0 && echo "[ERROR] Failed to get SDBPASSWD from config.js" && exit 1
 
         ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" > /dev/null
-        test $? -ne 0 && echo "[ERROR] Failed to get HASQL instanace group from ha_inst_group_list" && exit 1
+        rc=$?
+        # 222 错误是不存在实例组，忽略
+        test $? -ne 0 && $rc -ne 222 && echo "[ERROR] Failed to get HASQL instanace group from ha_inst_group_list" && exit 1
 
-        INSTANCEGROUPARRAY=(`ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" | sed '1d' | awk '{print $1}' | uniq`)
-        test $? -ne 0 && echo "[ERROR] Failed to get HASQL instance group name from ha_inst_group_list" && exit 1
-        echo "HASQL instance group: ${INSTANCEGROUPARRAY[@]}"
+        if [ $rc -eq 0 ]; then
+            INSTANCEGROUPARRAY=(`ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" | sed '1d' | awk '{print $1}' | uniq`)
+            test $? -ne 0 && echo "[ERROR] Failed to get HASQL instance group name from ha_inst_group_list" && exit 1
+            echo "HASQL instance group: ${INSTANCEGROUPARRAY[@]}"
+        else # 222
+            INSTANCEGROUPARRAY=()
+            echo "No HASQL instance group in current cluster"
+        fi
 else
     echo "[WARN] SequoiaSQL is not installed on this machine"
 fi
+
+# 统计 SDB 的索引数量（所有副本总数）
+sdb -e "var CUROPR = \"getIndexCount\"" -f cluster_opr.js
 
 # 保存集群升级前集合名，各个集合数据条数，域名和 HASQL 相关信息，用于升级后对比
 GROUPSTR=""
@@ -32,7 +42,7 @@ done
 # 创建 SDB 的测试表
 sdb -e "var CUROPR = \"createTestCSCL\"" -f cluster_opr.js
 # 每个实例组创建 SQL 的测试表
-if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb' ]]; then
+if [[ ( -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb' ) && "${#INSTANCEGROUPARRAY[*]}" != "0" ]]; then
     echo "Begin to create SQL test database and table"
 
     SQLUSER=$(sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"SQLUSER\"" -f cluster_opr.js)
@@ -68,6 +78,6 @@ if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb'
     done
 fi
 
-#在创建测试表等待一会（回放）之后再收集信息
-sleep 5
+#在创建测试表等待一会（回放）之后再收集信息，如果没有实例组则无需等待
+test "${#INSTANCEGROUPARRAY[*]}" != "0" && sleep 5
 sdb -e "var CUROPR = \"collect_old\";var INSTANCEGROUPARRAY = [ ${GROUPSTR} ]" -f cluster_opr.js

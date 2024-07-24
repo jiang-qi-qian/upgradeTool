@@ -18,3 +18,14 @@
 
 2024/07/19
 1. upgrade_install.sh 脚本在升级前会检查 sdb 和 sql 当前运行版本号和安装包的 md5，如果 md5 相同，会跳过升级，脚本具有幂等性
+
+2024/07/24
+1. rollback_install.sh 脚本在回退前会检查 sdb 和 sql 当前运行版本号和安装包的 md5，如果 md5 相同，会跳过回退，脚本具有幂等性
+2. stop.sh 会检查机器的 sequoiasql 数量，多个 sql 会报错
+3. stop.sh 会检查机器的 /etc/default/sequoiasql-[mysql|mariadb] 和 /etc/default/sequoiadb 中的 INSTALL_DIR 和 VERSION
+    - INSTALL_DIR 末尾不能有 '/'
+    - sql 的 VERSION 不能为空
+4. upgrade_backup.sh 以 root 用户运行时，可以修复上面第三点 stop.sh 检查出来的错误，此修改是永久的
+5. collect.sh 中增加了索引数量的统计
+6. 调整了一些打屏信息的格式
+7. 修复了安装了 sql 但没有使用实例组情况下工具不可用的 bug

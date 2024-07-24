@@ -14,12 +14,20 @@ if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb'
     test $? -ne 0 && echo "[ERROR] Failed to get SDBUSER from config.js" && exit 1
     SDBPASSWD=$(sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"SDBPASSWD\"" -f cluster_opr.js)
     test $? -ne 0 && echo "[ERROR] Failed to get SDBPASSWD from config.js" && exit 1
-    ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" > /dev/null
-    test $? -ne 0 && echo "[ERROR] Failed to get HASQL instanace group from ha_inst_group_list" && exit 1
 
-    INSTANCEGROUPARRAY=(`ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" | sed '1d' | awk '{print $1}' | uniq`)
-    test $? -ne 0 && echo "[ERROR] Failed to get HASQL instance group name from ha_inst_group_list" && exit 1
-    echo "HASQL instance group: ${INSTANCEGROUPARRAY[@]}"
+    ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" > /dev/null
+    rc=$?
+    # 222 错误是不存在实例组，忽略
+    test $? -ne 0 && $rc -ne 222 && echo "[ERROR] Failed to get HASQL instanace group from ha_inst_group_list" && exit 1
+
+    if [ $rc -eq 0 ]; then
+        INSTANCEGROUPARRAY=(`ha_inst_group_list -u"${SDBUSER}" -p"${SDBPASSWD}" | sed '1d' | awk '{print $1}' | uniq`)
+        test $? -ne 0 && echo "[ERROR] Failed to get HASQL instance group name from ha_inst_group_list" && exit 1
+        echo "  HASQL instance group: ${INSTANCEGROUPARRAY[@]}"
+    else # 222
+        INSTANCEGROUPARRAY=()
+        echo "  No HASQL instance group in current cluster"
+    fi
     echo "Done"
 else
     echo "[WARNING] SequoiaSQL is not installed on this machine"
@@ -50,8 +58,11 @@ elif [ "${SKIPCHECK}" == "false" ]; then
     diff "${UPGRADEBACKUPPATH}/domain_name_old.info" "${UPGRADEBACKUPPATH}/domain_name_new.info"
     test $? -ne 0 && echo "[ERROR] Diff file ${UPGRADEBACKUPPATH}/domain_name_old.info ${UPGRADEBACKUPPATH}/domain_name_new.info failed"
     if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb' ]]; then
-        diff "${UPGRADEBACKUPPATH}/hasql_old.info" "${UPGRADEBACKUPPATH}/hasql_new.info"
-        test $? -ne 0 && echo "[ERROR] Diff file ${UPGRADEBACKUPPATH}/hasql_old.info ${UPGRADEBACKUPPATH}/hasql_new.info failed"
+        # 有实例组才对比实例组信息
+        if [ "${#INSTANCEGROUPARRAY[*]}" != "0" ]; then
+            diff "${UPGRADEBACKUPPATH}/hasql_old.info" "${UPGRADEBACKUPPATH}/hasql_new.info"
+            test $? -ne 0 && echo "[ERROR] Diff file ${UPGRADEBACKUPPATH}/hasql_old.info ${UPGRADEBACKUPPATH}/hasql_new.info failed"
+        fi
     fi
     echo "Done"
 else
@@ -66,7 +77,11 @@ sdb -e "var CUROPR = \"checkBasic\";var SDBVERSION = \"${SDBVERSION}\"" -f clust
 echo "Done"
 
 # 实例组同步测试
-if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb' ]]; then
+if [ "${#INSTANCEGROUPARRAY[*]}" == "0" ]; then
+    echo "There is no need to check HASQL instance group, because instance group array is empty"
+fi
+
+if [[ ( -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb' ) && "${#INSTANCEGROUPARRAY[*]}" != "0" ]]; then
     echo "Begin to check local SQL"
 
     SQLUSER=$(sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"SQLUSER\"" -f cluster_opr.js)

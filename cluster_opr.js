@@ -157,7 +157,7 @@ function saveDomainInfo(filename) {
 ***************************************************************************** */
 function saveHASQL(filename) {
     if (INSTANCEGROUPARRAY.length == 0) {
-        println("There is no need to collect HASQL information, because SequoiaSQL is not installed");
+        println("There is no need to collect HASQL information, because instance group array is empty");
         return true;
     }
 
@@ -313,44 +313,44 @@ function collectInfo_old() {
         }
     }
 
-    println("Begin to check Tasks");
+    println("   Begin to check Tasks");
     if (checkTasks()) {
-        println("Done");
+        println("   Done");
     } else {
         return false;
     }
 
-    println("Begin to check DiffLSNWithPrimary");
+    println("   Begin to check DiffLSNWithPrimary");
     if (checkLSN()) {
-        println("Done");
+        println("   Done");
     } else {
         return false;
     }
 
-    println("Begin to check SDB_LIST_TRANSACTIONS");
+    println("   Begin to check SDB_LIST_TRANSACTIONS");
     if (checkTransactions()) {
-        println("Done");
+        println("   Done");
     } else {
         return false;
     }
 
-    println("Begin to save $SNAPSHOT_CL info");
+    println("   Begin to save $SNAPSHOT_CL info");
     if (saveSNAPSHOTCLInfo(SNAPSHOTCLFILE)) {
-        println("Done");
+        println("   Done");
     } else {
         return false;
     }
 
-    println("Begin to save Domain info");
+    println("   Begin to save Domain info");
     if (saveDomainInfo(DOMAINFILE)) {
-        println("Done");
+        println("   Done");
     } else {
         return false;
     }
 
-    println("Begin to save HASQL info");
+    println("   Begin to save HASQL info");
     if (saveHASQL(HASQLFILE)) {
-        println("Done");
+        println("   Done");
     } else {
         return false;
     }
@@ -364,23 +364,23 @@ function collectInfo_old() {
 @return: true/false
 ***************************************************************************** */
 function collectInfo_new() {
-    println("Begin to save $SNAPSHOT_CL info");
+    println("   Begin to save $SNAPSHOT_CL info");
     if (saveSNAPSHOTCLInfo(SNAPSHOTCLFILE_NEW)) {
-        println("Done");
+        println("   Done");
     } else {
         return false;
     }
 
-    println("Begin to save domain info");
+    println("   Begin to save domain info");
     if (saveDomainInfo(DOMAINFILE_NEW)) {
-        println("Done");
+        println("   Done");
     } else {
         return false;
     }
 
-    println("Begin to save HASQL");
+    println("   Begin to save HASQL");
     if (saveHASQL(HASQLFILE_NEW)) {
-        println("Done");
+        println("   Done");
     } else {
         return false;
     }
@@ -402,7 +402,7 @@ function checkCluster() {
         return false;
     }
 
-    println("Begin to check $SNAPSHOT_HEALTH");
+    println("   Begin to check $SNAPSHOT_HEALTH");
     try {
         var cursor = db.exec('select count(1) as count from $SNAPSHOT_HEALTH where Status <> "Normal"');
         if (cursor.current().toObj().count != 0) {
@@ -418,8 +418,8 @@ function checkCluster() {
         db.close();
         return false;
     }
-    println("Done");
-    println("Begin to check SDB_SNAP_DATABASE");
+    println("   Done");
+    println("   Begin to check SDB_SNAP_DATABASE");
     try {
         var cursor = db.snapshot(SDB_SNAP_DATABASE,{},{"ErrNodes":1});
         if (cursor.current().toObj().ErrNodes.length != 0) {
@@ -428,15 +428,15 @@ function checkCluster() {
         }
         cursor.close();
     } catch (error) {
-        println("Failed to check sdb cluster SDB_SNAP_DATABASE, error info: " + error + "(" + getLastErrMsg() + ")");
+        println("   Failed to check sdb cluster SDB_SNAP_DATABASE, error info: " + error + "(" + getLastErrMsg() + ")");
         if (null != cursor) {
             cursor.close();
         }
         return false;
     }
-    println("Done");
+    println("   Done");
     if (INSTANCEGROUPARRAY.length != 0) {
-        println("Begin to check HASQL");
+        println("   Begin to check HASQL");
         try {
             var cursor;
             for (let i = 0; i < INSTANCEGROUPARRAY.length; i++) {
@@ -461,11 +461,11 @@ function checkCluster() {
         } finally {
             db.close();
         }
-        println("Done");
+        println("   Done");
     }
-    println("Begin to check DiffLSNWithPrimary");
+    println("   Begin to check DiffLSNWithPrimary");
     if (checkLSN()) {
-        println("Done");
+        println("   Done");
     } else {
         return false;
     }
@@ -568,7 +568,7 @@ function checkBasic() {
     //     return false;
     // }
     // println("Done");
-    println("Begin to insert data");
+    println("   Begin to insert data");
     try {
         for(var num = 1; num < 1000; num++){
             db.getCS(TESTCS).getCL(TESTCL).insert({"id":num,"name":num+""})
@@ -578,8 +578,8 @@ function checkBasic() {
         db.close();
         return false;
     }
-    println("Done");
-    println("Begin to check find,update and remove");
+    println("   Done");
+    println("   Begin to check find,update and remove");
     try {
         var cursor=db.getCS(TESTCS).getCL(TESTCL).find();
         cursor.close();
@@ -590,8 +590,8 @@ function checkBasic() {
         db.close();
         return false;
     }
-    println("Done");
-    println("Begin to insert LOB");
+    println("   Done");
+    println("   Begin to insert LOB");
     try {
         for(var num = 1; num < 100; num++){
             db.getCS(TESTCS).getCL(TESTCL).putLob(LOBFILE);
@@ -601,8 +601,8 @@ function checkBasic() {
         db.close();
         return false;
     }
-    println("Done");
-    println("Begin to check LOB find");
+    println("   Done");
+    println("   Begin to check LOB find");
     try {
         var cursor = db.getCS(TESTCS).getCL(TESTCL).listLobs();
         cursor.close();
@@ -611,7 +611,7 @@ function checkBasic() {
         db.close();
         return false;
     }
-    println("Done");
+    println("   Done");
     return true;
     // 不做DDL
     // println("Begin to remove cs [" + TESTCS + "]");
@@ -697,32 +697,58 @@ function createTestCSCL() {
         return false;
     }
 
-    println("Begin to create cs [" + TESTCS + "]");
+    println("   Begin to create cs [" + TESTCS + "]");
     try {
         db.createCS(TESTCS);
     } catch (error) {
         if (-33 != error) {
-            println("Failed to create cs [" + TESTCS + "], error info: " + error + "(" + getLastErrMsg() + ")");
+            println("   Failed to create cs [" + TESTCS + "], error info: " + error + "(" + getLastErrMsg() + ")");
             db.close();
             return false;
         } else {
-            println("TESTCS [" + TESTCS + "] is already exists");
+            println("   TESTCS [" + TESTCS + "] is already exists");
         }
     }
-    println("Done");
-    println("Begin to create cl [" + TESTCL + "]");
+    println("   Done");
+    println("   Begin to create cl [" + TESTCL + "]");
     try {
         db.getCS(TESTCS).createCL(TESTCL, { "ShardingKey": { "_id": 1 }, "ShardingType": "hash", "ReplSize": -1, "Compressed": true, "CompressionType": "lzw", "AutoSplit": true, "EnsureShardingIndex": false } );
     } catch (error) {
         if (-22 != error) {
-            println("Failed to create cl [" + TESTCS + "." + TESTCL + "], error info: " + error + "(" + getLastErrMsg() + ")");
+            println("   Failed to create cl [" + TESTCS + "." + TESTCL + "], error info: " + error + "(" + getLastErrMsg() + ")");
             db.close();
             return false;
         } else {
-            println("TESTCL [" + TESTCL + "] is already exists");
+            println("   TESTCL [" + TESTCL + "] is already exists");
         }
     }
-    println("Done");
+    println("   Done");
+    return true;
+}
+
+/* *****************************************************************************
+@discription: 创建测试用的表
+@author: 获取索引数量（所有副本总数）
+@return: true/false
+***************************************************************************** */
+function getIndexCount() {
+    var db;
+
+    try {
+        db = new Sdb(COORDADDR, COORDSVC, SDBUSER, SDBPASSWD);
+    } catch (error) {
+        println("Failed to connect sdb, error info: " + error + "(" + getLastErrMsg() + ")");
+        return false;
+    }
+
+    try {
+        var count = db.exec('select sum(t1.Details.Indexes) as totalIndexesCount from (select Details from $SNAPSHOT_CL split by Details) as t1').current().toObj().totalIndexesCount;
+        println("   Indexes count: " + count);
+    } catch (error) {
+        println("Failed to get indexes count from $SNAPSHOT_CL, error info: " + error + "(" + getLastErrMsg() + ")");
+        db.close();
+        return false;
+    }
     return true;
 }
 
@@ -807,6 +833,14 @@ function main() {
     } else if ("dropSYSRECYCLEITEMS" == CUROPR) {
         println("Begin to drop SYSRECYCLEITEMS after rollback");
         if (dropSYSRECYCLEITEMS()) {
+            println("Done");
+        } else {
+            println("Failed");
+            return 1;
+        }
+    } else if ("getIndexCount" == CUROPR) {
+        println("Begin to get indexes count");
+        if (getIndexCount()) {
             println("Done");
         } else {
             println("Failed");

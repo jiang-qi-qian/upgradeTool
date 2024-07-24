@@ -18,7 +18,7 @@ fi
 
 NEWSDBRUNPACKAGE=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"NEWSDBRUNPACKAGE\"" -f cluster_opr.js)
 test $? -ne 0 && echo "[ERROR] Failed to get NEWSDBRUNPACKAGE from config.js" && exit 1
-test ! -f "${NEWSDBRUNPACKAGE}" && echo "[ERROR] Failed to get NEWSDBRUNPACKAGE from config.js" && exit 1
+test ! -f "${NEWSDBRUNPACKAGE}" && echo "[ERROR] NEWSDBRUNPACKAGE does not exist" && exit 1
 
 if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb' ]]; then
     test -f /etc/default/sequoiasql-mysql && . /etc/default/sequoiasql-mysql || . /etc/default/sequoiasql-mariadb
@@ -28,7 +28,7 @@ if [[ -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariadb'
     test $? -ne 0 && echo "[ERROR] Failed to get NEWSQLRUNPACKAGE from config.js" && exit 1
     test ! -f "${NEWSQLRUNPACKAGE}" && echo "[ERROR] Failed to get NEWSQLRUNPACKAGE from config.js" && exit 1
 else
-    echo "[WARN] SequoiaSQL is not installed on this machine"
+    echo "[WARNING] SequoiaSQL is not installed on this machine"
     SQL_INSTALL_DIR=""
 fi
 echo "Done"
@@ -36,15 +36,15 @@ echo "Done"
 echo "Begin to upgrade SequoiaDB"
 new_sdb_version=`${NEWSDBRUNPACKAGE} --version | sed 's/.* \([0-9]\.[0-9]\.[0-9]\) .*/\1/'`
 test $? -ne 0 && echo "[ERROR] Failed to get SequoiaDB version from ${NEWSDBRUNPACKAGE}" && exit 1
-old_sdb_version=`${SDB_INSTALL_DIR}/bin/sdb -v | head -n 1 | sed 's/.* \([0-9]\.[0-9]\.[0-9]\)/\1/'`
+cur_sdb_version=`${SDB_INSTALL_DIR}/bin/sdb -v | head -n 1 | sed 's/.* \([0-9]\.[0-9]\.[0-9]\)/\1/'`
 test $? -ne 0 && echo "[ERROR] Failed to get SequoiaDB version from ${SDB_INSTALL_DIR}/bin/sdb" && exit 1
-echo "  Crurrent SequoiaDB version is ${old_sdb_version}, and the upgrade package version is ${new_sdb_version}"
+echo "  Current SequoiaDB version is ${cur_sdb_version}, and the upgrade package version is ${new_sdb_version}"
 
 # 如果 sdb 的安装包中的 md5 和当前版本的 md5 相同，则跳过升级
 new_sdb_md5=`md5sum ${NEWSDBRUNPACKAGE} | awk '{print $1}'`
 test $? -ne 0 && echo "[ERROR] Failed to get SequoiaDB md5 from ${NEWSDBRUNPACKAGE}" && exit 1
 if [ "${new_sdb_md5}" == "${SDB_MD5}" ]; then
-    echo "  [WARN] The current SequoiaDB md5 is ${SDB_MD5}, which is the same as the upgrade package md5, no need to upgrade"
+    echo "  [WARNING] The current SequoiaDB md5 is ${SDB_MD5}, which is the same as the upgrade package md5, no need to upgrade"
 else
     # 需要升级时检查节点状态
     if [ "`${SDB_INSTALL_DIR}/bin/sdblist -t all`" != "Total: 0" ]; then
@@ -62,16 +62,16 @@ if [ "${SQL_INSTALL_DIR}" != "" ]; then
 
     new_sql_version=`${NEWSQLRUNPACKAGE} --version | sed 's/.* \([0-9]\.[0-9]\.[0-9]\) .*/\1/'`
     test $? -ne 0 && echo "[ERROR] Failed to get SequoiaSQL version from ${NEWSQLRUNPACKAGE}" && exit 1
-    old_sql_version=`${SQL_INSTALL_DIR}/bin/sdb_sql_ctl -v | head -n 1 | sed 's/.* \([0-9]\.[0-9]\.[0-9]\)/\1/'`
+    cur_sql_version=`${SQL_INSTALL_DIR}/bin/sdb_sql_ctl -v | head -n 1 | sed 's/.* \([0-9]\.[0-9]\.[0-9]\)/\1/'`
     test $? -ne 0 && echo "[ERROR] Failed to get SequoiaSQL version from ${SQL_INSTALL_DIR}/bin/sdb_sql_ctl" && exit 1
-    echo "  Crurrent SequoiaSQL version is ${old_sql_version}, and the upgrade package version is ${new_sql_version}"
+    echo "  Crurrent SequoiaSQL version is ${cur_sql_version}, and the upgrade package version is ${new_sql_version}"
 
     # 如果 sql 的安装包中的 md5 和当前版本的 md5 相同，则跳过升级
     new_sql_md5=`md5sum ${NEWSQLRUNPACKAGE} | awk '{print $1}'`
     test $? -ne 0 && echo "[ERROR] Failed to get SequoiaSQL md5 from ${NEWSQLRUNPACKAGE}" && exit 1
 
     if [ "${new_sql_md5}" == "${SQL_MD5}" ]; then
-        echo "  [WARN] The current SequoiaSQL md5 is ${SQL_MD5}, which is the same as the upgrade package md5, no need to upgrade"
+        echo "  [WARNING] The current SequoiaSQL md5 is ${SQL_MD5}, which is the same as the upgrade package md5, no need to upgrade"
     else
         # 需要升级时检查节点状态
         if [ "`${SQL_INSTALL_DIR}/bin/sdb_sql_ctl status | tail -n 1 | grep "Run: 0"`" == "" ]; then
