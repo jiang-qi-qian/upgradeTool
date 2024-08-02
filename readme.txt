@@ -9,6 +9,11 @@
     - 如果使用了 SQL ，所有只使用一次的工具需要在有 SQL 和 SDB 的机器执行
     - SQL 和 SDB 需要用同一个操作系统用户权限如 sdbadmin
 
+- 修改 sdbcm 系统服务超时时间（可提前做，不影响业务）
+    change_service.sh   (root)在 sdbcm 系统服务配置文件中增加超时时间 TimeoutSec=1300 的配置（单位为秒），其中 1300 为默认值，可在此脚本中修改配置
+                        每台需要修改的机器都要执行
+                        没有 TimeoutSec 则新增配置，存在则修改现有 TimeoutSec 配置的值
+
 - 升级前
                         刷盘，停止业务
     collect.sh          (sdbadmin)选择一台同时拥有 SDB 和 SQL 的机器 host1 执行，创建测试表，收集升级前集群信息
