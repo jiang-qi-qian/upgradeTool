@@ -17,7 +17,7 @@ test ! -f "${SERVICEFILE}" && echo "[ERROR] System service config file ${SERVICE
 echo "Service config file is: ${SERVICEFILE}"
 
 
-if [ "`cat ${SERVICEFILE}` | grep 'TimeoutSec='" != "" ]; then
+if [ "`cat ${SERVICEFILE} | grep 'TimeoutSec='`" != "" ]; then
     # 如果超时时间已经存在，则直接修改
     echo "TimeoutSec is already in file ${SERVICEFILE}, begin to change it"
     sed -i "s#^ *\(TimeoutSec=\).*#\1${TIMEOUTSEC}#" "${SERVICEFILE}"
