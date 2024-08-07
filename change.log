@@ -32,3 +32,7 @@
 
 2024/08/02
 1. 新增 change_service.sh 脚本，可修改 sdbcm 系统服务超时时间
+
+2024/08/07
+1. 修复 change_service.sh 脚本 bug
+2. 修改 start.sh 中超时时间为 1300s ，与 sdbcm 一致

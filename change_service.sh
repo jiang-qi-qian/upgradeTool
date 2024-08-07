@@ -37,8 +37,8 @@ else
 fi
 
 # 重新加载系统服务
-systemctl daemon-reload
 echo "Begin to reload system service"
+systemctl daemon-reload
 test $? -ne 0 && echo "[ERROR] Failed to exec systemctl daemon-reload" && exit 1
 
 # 查看系统服务状态，没有警告则修改成功
