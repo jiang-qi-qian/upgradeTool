@@ -36,3 +36,6 @@
 2024/08/07
 1. 修复 change_service.sh 脚本 bug
 2. 修改 start.sh 中超时时间为 1300s ，与 sdbcm 一致
+
+2024/08/23
+1. 调整 check.sh 中执行的 sql 语句中的 " 为 '，以适配 sql_mode 包含 ANSI_QUOTES 的情况
