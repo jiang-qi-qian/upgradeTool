@@ -78,6 +78,9 @@ if [[ ( -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariad
     done
 fi
 
-#在创建测试表等待一会（回放）之后再收集信息，如果没有实例组则无需等待
+# 在创建测试表等待一会（回放）之后再收集信息，如果没有实例组则无需等待
 test "${#INSTANCEGROUPARRAY[*]}" != "0" && sleep 5
 sdb -e "var CUROPR = \"collect_old\";var INSTANCEGROUPARRAY = [ ${GROUPSTR} ]" -f cluster_opr.js
+
+# 通过 oma 调整所有机器的 sdbcm.conf 中的 AutoStart 为 false，在升级完成后再调整回来
+sdb -e "var CUROPR = \"changeSDBCM\"" -f cluster_opr.js

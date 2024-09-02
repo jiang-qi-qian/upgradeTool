@@ -22,6 +22,8 @@ var SNAPSHOTCLFILE = UPGRADEBACKUPPATH + '/snapshot_cl_old.info';
 var DOMAINFILE = UPGRADEBACKUPPATH + '/domain_name_old.info';
 // 记录HASQL状态
 var HASQLFILE = UPGRADEBACKUPPATH + '/hasql_old.info';
+// 记录 sdbcm 配置
+var SDBCMFILE = UPGRADEBACKUPPATH + '/all_sdbcm.conf';
 
 // 升级后验证
 var SNAPSHOTCLFILE_NEW = UPGRADEBACKUPPATH + '/snapshot_cl_new.info';
@@ -83,7 +85,7 @@ function saveSNAPSHOTCLInfo(filename) {
         var cursor = db.exec('select t2.Name,t2.TotalRecords,t2.TotalLobs from (select t.Name,t.Details.TotalRecords as TotalRecords,t.Details.TotalLobs as TotalLobs from (select Name,Details from $SNAPSHOT_CL split by Details) as t ) as t2 order by t2.Name,t2.TotalRecords,t2.TotalLobs');
         while(cursor.next()) {
             let current = cursor.current().toObj();
-            // 拼成一行写入， diff 可用看到哪些表不对
+            // 拼成一行写入， diff 可以看到哪些表不对
             file.write(current.Name + " TotalRecords: " + current.TotalRecords + " TotalLobs: " + current.TotalLobs + "\n");
         }
     } catch (error) {
@@ -727,8 +729,8 @@ function createTestCSCL() {
 }
 
 /* *****************************************************************************
-@discription: 创建测试用的表
-@author: 获取索引数量（所有副本总数）
+@discription: 获取索引数量（所有副本总数）
+@author: Qiqian Jiang
 @return: true/false
 ***************************************************************************** */
 function getIndexCount() {
@@ -749,6 +751,277 @@ function getIndexCount() {
         db.close();
         return false;
     }
+    return true;
+}
+
+/* *****************************************************************************
+@discription: 升级前修改 sdbcm AutoStart 配置为 false
+@author: Qiqian Jiang
+@return: true/false
+***************************************************************************** */
+function changeSDBCM() {
+    var oma;
+    var db;
+    var file;
+
+    if (true == KEEPSDBCMCONF) {
+        if (File.exist(SDBCMFILE)) {
+            try {
+                File.remove(SDBCMFILE);
+            } catch (error) {
+                println("Failed to clean " + SDBCMFILE + ", error info: " + error + "(" + getLastErrMsg() + ")");
+                return false;
+            }
+        }
+    
+        try {
+            file = new File(SDBCMFILE);
+        } catch(error) {
+            println("Create or open file[" + SDBCMFILE + "] failed: " + error + "(" + getLastErrMsg() + ")");
+            return false;
+        }
+    }
+
+    try {
+        db = new Sdb(COORDADDR, COORDSVC, SDBUSER, SDBPASSWD);
+    } catch (error) {
+        println("Failed to connect sdb, error info: " + error + "(" + getLastErrMsg() + ")");
+        return false;
+    }
+
+    // 获取主机名列表
+    var hostArray = [];
+    try {
+        var cursor = db.exec('select HostName from $SNAPSHOT_SYSTEM group by HostName');
+        while(cursor.next()) {
+            hostArray.push(cursor.current().toObj().HostName);
+        }
+        cursor.close();
+    } catch (error) {
+        println("Failed to get HostName count from $SNAPSHOT_SYSTEM, error info: " + error + "(" + getLastErrMsg() + ")");
+        return false;
+    } finally {
+        db.close();
+    }
+
+    // 获取本地 Oma
+    try {
+        oma = new Oma();
+    } catch (error) {
+        println("Failed to get Oma, error info: " + error + "(" + getLastErrMsg() + ")");
+        return false;
+    }
+
+    // 逐个修改 sdbcm 配置
+    var allCmConf = [];
+    for (let i = 0; i < hostArray.length; i++) {
+        var hostName = hostArray[i];
+        // 获取 sdbcm 端口号
+        var port = oma.getAOmaSvcName(hostName);
+        // sdbcm.conf 的文件路径
+        var sdbcmFile;
+        try {
+            // 通过远程 oma 获取 sdbcm.conf 的文件路径
+            var remoteOma = new Oma(hostName, port);
+            sdbcmFile = remoteOma.getOmaConfigFile();
+            remoteOma.close();
+        } catch (error) {
+            println("Failed to get sdbcm.conf path from oma on " + hostName + ":" + port + ", error info: " + error + "(" + getLastErrMsg() + ")");
+            oma.close();
+            return false;
+        }
+        // 连接 remote
+        var remoteObj;
+        try {
+            remoteObj = new Remote(hostName, port);
+        } catch (error) {
+            println("Failed to get remoteObj on " + hostName + ":" + port + ", error info: " + error + "(" + getLastErrMsg() + ")");
+            oma.close();
+            return false;
+        }
+
+        try {
+            var ini = remoteObj.getIniFile(sdbcmFile, SDB_INIFILE_EQUALSIGN | SDB_INIFILE_STRICTMODE | SDB_INIFILE_HASHMARK )
+            // 如果需要保持 sdbcm 配置，需要在本地用文件记住每台机器的配置
+            if (true == KEEPSDBCMCONF) {
+                allCmConf.push({"HostName":hostName, "AutoStart":ini.getValue("AutoStart")});
+            }
+            ini.setValue("AutoStart","false");
+            ini.save();
+            println("   change " + hostName + ":" + port + " AutoStart = false");
+            // 无需重新加载，稍后升级流程会停止 sdbcm，等待升级后重启自动生效
+        } catch (error) {
+            println("Failed to set AutoStart = false on " + hostName + ":" + port + ", error info: " + error + "(" + getLastErrMsg() + ")");
+            oma.close();
+            return false;
+        } finally {
+            remoteObj.close();
+        }
+    }
+
+    try {
+        oma.close();
+    } catch (error) {
+        println("Failed to close Oma, error info: " + error + "(" + getLastErrMsg() + ")");
+    }
+
+    if (true == KEEPSDBCMCONF) {
+        try {
+            file.write(JSON.stringify(allCmConf) + "\n");
+        } catch (error) {
+            println("Failed to wirte file " + SDBCMFILE + ", error info: " + error + "(" + getLastErrMsg() + ")");
+            return false;
+        } finally {
+            file.close();
+        }
+    }
+    
+    return true;
+}
+
+/* *****************************************************************************
+@discription: 升级后恢复 sdbcm AutoStart
+@author: Qiqian Jiang
+@return: true/false
+***************************************************************************** */
+function restoreSDBCM() {
+    var oma;
+    var db;
+    var file;
+    var allCmConf = [];
+
+    if (true == KEEPSDBCMCONF) {
+        // 读取 sdbcm 配置文件
+        if (!File.exist(SDBCMFILE)) {
+            println("File " + SDBCMFILE + " does not exist");
+            return false;
+        }
+    
+        try {
+            file = new File(SDBCMFILE);
+        } catch(error) {
+            println("Open file[" + SDBCMFILE + "] failed: " + error + "(" + getLastErrMsg() + ")");
+            return false;
+        }
+    
+        try {
+            allCmConf = JSON.parse(file.read(file.getSize(SDBCMFILE)));
+            file.close();
+        } catch(error) {
+            println("Failed to get sdbcm conf array from file[" + SDBCMFILE + "], " + error + "(" + getLastErrMsg() + ")");
+            file.close();
+            return false;
+        }
+        
+        if (!Array.isArray(allCmConf)) {
+            println("Failed to get sdbcm conf array from file[" + SDBCMFILE + "]");
+            return false;
+        }
+    }
+
+    try {
+        db = new Sdb(COORDADDR, COORDSVC, SDBUSER, SDBPASSWD);
+    } catch (error) {
+        println("Failed to connect sdb, error info: " + error + "(" + getLastErrMsg() + ")");
+        return false;
+    }
+
+    // 获取主机名列表
+    var hostArray = [];
+    try {
+        // 根据主机名分组并排序，确保相同环境每次执行返回的结果顺序是一致的
+        var cursor = db.exec('select HostName from $SNAPSHOT_SYSTEM group by HostName order by HostName');
+        while(cursor.next()) {
+            hostArray.push(cursor.current().toObj().HostName);
+        }
+        cursor.close();
+    } catch (error) {
+        println("Failed to get HostName count from $SNAPSHOT_SYSTEM, error info: " + error + "(" + getLastErrMsg() + ")");
+        return false;
+    } finally {
+        db.close();
+    }
+
+    // 获取本地 Oma
+    try {
+        oma = new Oma();
+    } catch (error) {
+        println("Failed to get Oma, error info: " + error + "(" + getLastErrMsg() + ")");
+        return false;
+    }
+
+    // 逐个修改 sdbcm 配置
+    for (let i = 0; i < hostArray.length; i++) {
+        var hostName = hostArray[i];
+        var port = oma.getAOmaSvcName(hostName);
+        var remoteOma;
+
+        if (true == KEEPSDBCMCONF) {
+            // 通过快照获取的主机名要和文件中的对应，否则报错
+            if (allCmConf[i].HostName != hostName) {
+                println("Failed to check " + hostName + ":" + port + " in file SDBCMFILE");
+                oma.close();
+                return false;
+            }
+        }
+
+        try {
+            remoteOma = new Oma(hostName, port);
+        } catch (error) {
+            println("Failed to get Oma on " + hostName + ":" + port + ", error info: " + error + "(" + getLastErrMsg() + ")");
+            oma.close();
+            return false;
+        }
+
+        // sdbcm.conf 的文件路径
+        var sdbcmFile;
+        try {
+            sdbcmFile = remoteOma.getOmaConfigFile();
+        } catch (error) {
+            println("Failed to get sdbcm.conf path from oma on " + hostName + ":" + port + ", error info: " + error + "(" + getLastErrMsg() + ")");
+            oma.close();
+            return false;
+        }
+
+        // 连接 remote
+        var remoteObj;
+        try {
+            remoteObj = new Remote(hostName, port);
+        } catch (error) {
+            println("Failed to get remoteObj on " + hostName + ":" + port + ", error info: " + error + "(" + getLastErrMsg() + ")");
+            remoteOma.close();
+            oma.close();
+            return false;
+        }
+
+        try {
+            var ini = remoteObj.getIniFile(sdbcmFile, SDB_INIFILE_EQUALSIGN | SDB_INIFILE_STRICTMODE | SDB_INIFILE_HASHMARK );
+            var value = true;
+            if (true == KEEPSDBCMCONF) {
+                value = allCmConf[i].AutoStart;
+            } else {
+                value = true;
+            }
+            println("   restore " + hostName + ":" + port + " AutoStart = " + value);
+            ini.setValue("AutoStart",value);
+            ini.save();
+            // 重新加载
+            remoteOma.reloadConfigs();
+        } catch (error) {
+            println("Failed to restore AutoStart = " + value + " on " + hostName + ":" + port + ", error info: " + error + "(" + getLastErrMsg() + ")");
+            return false;
+        } finally {
+            remoteOma.close();
+            remoteObj.close();
+        }
+    }
+
+    try {
+        oma.close();
+    } catch (error) {
+        println("Failed to close Oma, error info: " + error + "(" + getLastErrMsg() + ")");
+    }
+
     return true;
 }
 
@@ -841,6 +1114,22 @@ function main() {
     } else if ("getIndexCount" == CUROPR) {
         println("Begin to get indexes count");
         if (getIndexCount()) {
+            println("Done");
+        } else {
+            println("Failed");
+            return 1;
+        }
+    } else if ("changeSDBCM" == CUROPR) {
+        println("Begin to change sdbcm.conf");
+        if (changeSDBCM()) {
+            println("Done");
+        } else {
+            println("Failed");
+            return 1;
+        }
+    } else if ("restoreSDBCM" == CUROPR) {
+        println("Begin to restore sdbcm.conf");
+        if (restoreSDBCM()) {
             println("Done");
         } else {
             println("Failed");
