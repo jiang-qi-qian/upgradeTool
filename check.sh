@@ -160,3 +160,6 @@ if [[ ( -f '/etc/default/sequoiasql-mysql' || -f '/etc/default/sequoiasql-mariad
     sdb -e "var CUROPR = \"checkCluster\";var INSTANCEGROUPARRAY = [ ${GROUPSTR} ]" -f cluster_opr.js
     echo "Done"
 fi
+
+# 恢复 sdbcm AutoStart 配置（无论是统一设置为 true，或者恢复之前的配置，都可多次执行，无影响）
+sdb -e "var CUROPR = \"restoreSDBCM\"" -f cluster_opr.js

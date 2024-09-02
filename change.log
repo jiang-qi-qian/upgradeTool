@@ -39,3 +39,8 @@
 
 2024/08/23
 1. 调整 check.sh 中执行的 sql 语句中的 " 为 '，以适配 sql_mode 包含 ANSI_QUOTES 的情况
+
+2024/09/02
+1. config.js 中新增 KEEPSDBCMCONF 参数，可指定升级后是设置 AutoStart 为 true，还是保持升级前的配置
+2. collect.sh 中新增升级前修改 sdbcm.conf 的 AutoStart 值为 false
+3. check.sh 中新增升级后修改 sdbcm.conf 的 AutoStart 值为 true 或恢复升级前的配置

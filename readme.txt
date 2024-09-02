@@ -16,7 +16,10 @@
 
 - 升级前
                         刷盘，停止业务
-    collect.sh          (sdbadmin)选择一台同时拥有 SDB 和 SQL 的机器 host1 执行，创建测试表，收集升级前集群信息
+    collect.sh          (sdbadmin)选择一台同时拥有 SDB 和 SQL 的机器 host1 执行，
+                            创建测试表
+                            收集升级前集群信息
+                            将所有机器的 sdbcm.conf 中的 AutoStart 修改为 false
     stop.sh             (sdbadmin)所有机器执行，检查 /etc/default/ 下文件，停止所有 SQL 实例，SDB 节点 和 sdbcm
     upgrade_backup.sh   (sdbadmin/root)所有机器执行备份，可并发
                             目前发现部分版本的SQL，如 3.4.8 存在 uninstall.dat 文件权限为 -rw------- root root，这种情况下 sdbadmin 用户无法备份
@@ -29,7 +32,9 @@
                         人工关闭回收站 db.getRecycleBin().disable()
                         人工索引升级
 - 升级校验
-    check.sh            (sdbadmin)选择一台同时拥有 SDB 和 SQL 的机器 host1 执行，校验升级前后信息是否一致
+    check.sh            (sdbadmin)选择一台同时拥有 SDB 和 SQL 的机器 host1 执行
+                            校验升级前后信息是否一致
+                            恢复所有机器的 sdbcm.conf 中的 AutoStart 值
     reelect.sh          (sdbadmin)重新选主，目前是固定脚本（结果不太好看，建议做巡检看）
 
 - 回滚              
@@ -45,6 +50,10 @@
                             - 表中记录数变多，且变多的记录内容为测试语句: HALock, HAPendingObject, HAInstanceObjectState, HAObjectState, HASQLLog
     reelect.sh          (sdbadmin)重新选主，目前是固定脚本，需要根据客户修改，后续会改进为通用工具
 
+
+- 其他
+    - 可单独使用 sdb -e "var CUROPR = \"changeSDBCM\"" -f cluster_opr.js，将所有机器的 sdbcm.conf 中的 AutoStart 值修改为 false
+    - 可单独使用 sdb -e "var CUROPR = \"restoreSDBCM\"" -f cluster_opr.js，将所有机器的 sdbcm.conf 中的 AutoStart 值修改为 true
 
 - 未修复问题
     - 表现:
