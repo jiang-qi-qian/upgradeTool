@@ -6,6 +6,19 @@ if [ `whoami` != "root" ]; then
     exit 1
 fi
 
+echo "Begin to check umask"
+cur_umask=`umask`
+if [ "${cur_umask}" == "0022" ]; then
+    echo "Done"
+else
+    echo "[Warning] Current umask is ${cur_umask} and will be temporarily changed to 0022 for upgrading the database"
+    umask 0022
+    test $? -ne 0 && echo "[ERROR] Failed to change umask" && exit 1
+    cur_umask=`umask`
+    test "${cur_umask}" != "0022" && echo "[ERROR] Failed to change umask" && exit 1
+    echo "Done"
+fi
+
 echo "Begin to check sdb and sql install dir"
 if [ -f "/etc/default/sequoiadb" ]; then
     . /etc/default/sequoiadb

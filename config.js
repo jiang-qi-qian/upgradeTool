@@ -34,3 +34,5 @@ var LSNDIFF = 0;
 var ROLLBACKOM = false;
 // 是否保持 sdbcm.conf 配置，默认为 false 不保持原有配置，升级后会把 AutoStart 设置为 true
 var KEEPSDBCMCONF = false;
+// start.sh 脚本中 sdbcmart 等待节点超时时间，默认为 1300s
+var STARTTIMEOUT = 1300;

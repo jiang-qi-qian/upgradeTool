@@ -44,3 +44,7 @@
 1. config.js 中新增 KEEPSDBCMCONF 参数，可指定升级后是设置 AutoStart 为 true，还是保持升级前的配置
 2. collect.sh 中新增升级前修改 sdbcm.conf 的 AutoStart 值为 false
 3. check.sh 中新增升级后修改 sdbcm.conf 的 AutoStart 值为 true 或恢复升级前的配置
+
+2024/10/29
+1. start.sh 中等待节点启动的超时时间现在可以从 config.js 中配置
+2. upgrade_install.sh 中增加了对 umask 的检查，如果不是 0022，会修改为 0022 后再升级

@@ -22,9 +22,11 @@ test $rc -ne 0 && echo "[ERROR] sdbcmart error: $rc" && exit 1
 echo "Done"
 echo "----------------------------------------------------------"
 
+STARTTIMEOUT=$(${SDB_INSTALL_DIR}/bin/sdb -e "var CUROPR = \"getArg\";var ARGNAME = \"STARTTIMEOUT\"" -f cluster_opr.js)
+test $? -ne 0 && echo "[ERROR] Failed to get STARTTIMEOUT from config.js" && exit 1
 
-# 循环看节点启动 1s ，循环 1300s（sdbcm超时时间）
-echo "Waiting 1300s for nodes start"
+# 循环看节点启动 1s ，循环 STARTTIMEOUT s
+echo "Waiting ${STARTTIMEOUT}s for nodes start"
 loop_count=0
 while true
 do
@@ -33,7 +35,7 @@ do
     if [ "${run_count}" == "${all_count}" ]; then
         break;
     else
-        test $loop_count -eq 1300 && echo "[ERROR] Waiting sdb nodes start timeout" && exit 1
+        test $loop_count -eq ${STARTTIMEOUT} && echo "[ERROR] Waiting sdb nodes start timeout" && exit 1
         sleep 1
         ((loop_count++))
     fi
